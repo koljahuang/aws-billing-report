@@ -80,6 +80,9 @@ claude skill install aws-billing-report.skill
 # Option B: Install from directory
 cp -r aws-billing-report ~/.claude/skills/
 
+# Option C: Install from GitHub
+npx skill install https://github.com/koljahuang/aws-billing-report.git
+
 # Verify installation
 claude skill list
 ```
