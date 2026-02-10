@@ -198,11 +198,48 @@ When you request a billing report, Claude Code automatically:
 
 ### Data Source: Cost and Usage Report (CUR)
 
+**What is CUR?**
+
+**CUR (Cost and Usage Report)** is AWS's most comprehensive billing data source. It provides:
+- Detailed usage information for all AWS services
+- Granular data: usage types, quantities, rates, costs
+- Regional breakdown
+- Resource IDs and tags
+- Line-item level detail matching the AWS Bills page
+
+**Key Characteristics:**
+
 - **Format**: Parquet files in S3
-- **Update frequency**: Daily
+- **Update frequency**: Daily (updates current month automatically)
 - **Storage location**: `s3://aws-cur-{account_id}/cur/billing-report-detailed/`
 - **Data detail**: Most comprehensive billing data available from AWS
 - **Includes**: All services, regions, usage types, descriptions, quantities, rates
+
+**Important: Data Availability**
+
+⚠️ **CUR only records data from the time it was configured forward** - historical data before CUR setup is NOT available.
+
+**Example:**
+- If you configure CUR on February 5, 2026
+- Your report will show data starting from February 2026
+- January 2026 and earlier months will have no data (shows $0.00)
+- From March 2026 onward, you'll have complete monthly data
+
+**Why do I only see some months with data?**
+
+This happens because:
+1. **First-time setup**: CUR was just configured, so only current month has data
+2. **CUR cannot backfill**: Historical billing data before CUR setup is not captured
+3. **Daily updates**: Once configured, CUR updates automatically every day
+
+**How to get historical billing data:**
+
+For months before CUR was configured, you can:
+- Use **AWS Cost Explorer** - provides historical trends and graphs
+- View **AWS Bills page** - shows monthly totals and service-level summaries
+- Download **AWS Bills (PDF/CSV)** - basic billing information
+
+However, none of these provide the same level of detail as CUR (usage types, quantities, rates, drill-down hierarchy).
 
 ## Requirements
 
@@ -363,7 +400,10 @@ A: Daily. Reports contain billing data up to the previous day.
 A: Yes! Configure CUR for each account separately.
 
 **Q: How far back can I get billing data?**
-A: CUR only retains data from when it was configured. Historical data before CUR setup is not available.
+A: CUR only records data from when it was configured. Historical data before CUR setup is not available. For example, if you configured CUR in February 2026, you'll only have data from February 2026 onward. See the "Data Source: Cost and Usage Report (CUR)" section for alternatives to access historical billing data.
+
+**Q: Why does my report show $0.00 for some months?**
+A: This happens when CUR was configured after those months. CUR cannot backfill historical data - it only records from the configuration date forward. Months before CUR setup will show no data ($0.00).
 
 **Q: Does this work with AWS Organizations?**
 A: Yes, configure CUR in the management account or use consolidated billing.
