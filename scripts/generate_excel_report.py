@@ -316,162 +316,123 @@ def extract_region_from_usage_type(usage_type, description, region_code=""):
     return "Global"
 
 
-def create_usage_details_sheet(wb, billing_data_list, target_month="Feb"):
+def create_usage_details_sheet(wb, billing_data_list):
     """
-    Create Sheet2: Detailed usage breakdown for drill-down.
-    Shows usage types grouped by service and region.
+    Create Sheet2: Detailed usage breakdown with Month filter column.
+    All months' data is written; use the Month column's AutoFilter to filter by month.
 
     Args:
         wb: Workbook object
         billing_data_list: List of billing data dicts, one per year
-        target_month: Month to show details for (default: Feb)
     """
-    ws = wb.create_sheet("Usage Details")
+    from collections import defaultdict
+    from openpyxl.utils import get_column_letter
 
-    # Write header row
-    ws.append(
-        ["Service", "Region", "Usage Type", "Description", "Quantity", "Rate", "Cost"]
-    )
+    ws = wb.create_sheet("Usage Details")
 
     # Get data for the target year (most recent)
     billing_data = billing_data_list[-1]
 
     if "usage_details" not in billing_data or not billing_data["usage_details"]:
-        # No detail data available
         ws.append(["No detailed usage data available"])
         apply_professional_style(ws)
         return
 
-    # Filter for target month and group by service
-    usage_details = [
-        d for d in billing_data["usage_details"] if d["month"] == target_month
-    ]
+    months_order = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
-    # Group by service
-    from collections import defaultdict
+    # Write header row — Month is first column for easy filtering
+    ws.append(["Month", "Service", "Region", "Usage Type", "Description", "Quantity", "Rate", "Cost"])
 
-    by_service = defaultdict(list)
-    for detail in usage_details:
-        service = detail["service"]
-        by_service[service].append(detail)
-
-    # Sort services by total cost
-    service_totals = {
-        service: sum(d["cost"] for d in details)
-        for service, details in by_service.items()
-    }
-    sorted_services = sorted(
-        service_totals.keys(), key=lambda s: service_totals[s], reverse=True
-    )
-
-    # Write data for each service
-    for service in sorted_services:
-        details = by_service[service]
-        service_total = service_totals[service]
-
-        # Skip services with zero cost
-        if service_total < 0.01:
+    # Process all months in order
+    for month in months_order:
+        usage_details = [
+            d for d in billing_data["usage_details"] if d["month"] == month
+        ]
+        if not usage_details:
             continue
 
-        # Add service header
-        cleaned_service_name = clean_service_name(service)
-        ws.append([f"--- {cleaned_service_name} (${service_total:.2f}) ---"])
+        # Group by service
+        by_service = defaultdict(list)
+        for detail in usage_details:
+            by_service[detail["service"]].append(detail)
 
-        # Group by region within service
-        by_region = defaultdict(list)
-        for detail in details:
-            region_code = detail.get("region", "")
-            # Convert region code to friendly name
-            region = extract_region_from_usage_type(
-                detail.get("usage_type", ""), detail.get("description", ""), region_code
-            )
-            by_region[region].append(detail)
+        # Sort services by total cost descending
+        service_totals = {svc: sum(d["cost"] for d in dlist) for svc, dlist in by_service.items()}
+        sorted_services = sorted(service_totals, key=lambda s: service_totals[s], reverse=True)
 
-        # Calculate region totals
-        region_totals = {
-            region: sum(d["cost"] for d in region_details)
-            for region, region_details in by_region.items()
-        }
+        for service in sorted_services:
+            details = by_service[service]
+            service_total = service_totals[service]
+            if service_total < 0.01:
+                continue
 
-        # Sort regions by cost
-        sorted_regions = sorted(
-            region_totals.keys(), key=lambda r: region_totals[r], reverse=True
-        )
+            cleaned_service_name = clean_service_name(service)
 
-        # Write data for each region
-        for region in sorted_regions:
-            region_details = by_region[region]
-            region_total = region_totals[region]
-
-            # Add region header if region exists and there are multiple regions
-            if region and region != "Global":
-                ws.append(["", region, "", "", "", "", region_total])
-
-            # Sort usage types within region by cost
-            region_details.sort(key=lambda d: d["cost"], reverse=True)
-
-            # Add each usage type
-            for detail in region_details:
-                usage_type = detail.get("usage_type", "")
-                description = detail.get("description", "")
-                quantity = detail.get("quantity", 0)
-                rate = detail.get("rate", 0)
-                cost = detail.get("cost", 0)
-
-                # Format quantity with unit (assume GB for data transfer, otherwise use generic unit)
-                if quantity > 0:
-                    if "Bytes" in usage_type or "GB" in description:
-                        quantity_str = f"{quantity:.3f} GB"
-                    else:
-                        quantity_str = f"{quantity:.3f}"
-                else:
-                    quantity_str = "0 GB" if "Bytes" in usage_type else "0"
-
-                # Format rate
-                if rate > 0:
-                    if "Bytes" in usage_type or "GB" in description:
-                        rate_str = f"${rate:.4f} per GB"
-                    else:
-                        rate_str = f"${rate:.4f}"
-                else:
-                    rate_str = "$0.00"
-
-                # Add service prefix to usage type for better readability (matching AWS Bills format)
-                display_usage_type = usage_type
-                if service == "DataTransfer" or "DataTransfer" in usage_type:
-                    if not usage_type.startswith("AWS Data Transfer"):
-                        display_usage_type = f"AWS Data Transfer {usage_type}"
-                elif service == "AmazonEC2" and "BoxUsage" in usage_type:
-                    display_usage_type = f"Amazon EC2 {usage_type}"
-                elif service == "AmazonS3":
-                    display_usage_type = f"Amazon S3 {usage_type}"
-
-                ws.append(
-                    [
-                        "",  # Service (blank, already in header)
-                        "",  # Region (blank unless it's a region header)
-                        display_usage_type,
-                        description,
-                        quantity_str,
-                        rate_str,
-                        cost,
-                    ]
+            # Group by region
+            by_region = defaultdict(list)
+            for detail in details:
+                region_code = detail.get("region", "")
+                region = extract_region_from_usage_type(
+                    detail.get("usage_type", ""), detail.get("description", ""), region_code
                 )
+                by_region[region].append(detail)
 
-        # Add blank row between services
-        ws.append([])
+            region_totals = {r: sum(d["cost"] for d in rlist) for r, rlist in by_region.items()}
+            sorted_regions = sorted(region_totals, key=lambda r: region_totals[r], reverse=True)
+
+            for region in sorted_regions:
+                region_details = sorted(by_region[region], key=lambda d: d["cost"], reverse=True)
+
+                for detail in region_details:
+                    usage_type = detail.get("usage_type", "")
+                    description = detail.get("description", "")
+                    quantity = detail.get("quantity", 0)
+                    rate = detail.get("rate", 0)
+                    cost = detail.get("cost", 0)
+
+                    # Format quantity
+                    if quantity > 0:
+                        quantity_str = f"{quantity:.3f} GB" if ("Bytes" in usage_type or "GB" in description) else f"{quantity:.3f}"
+                    else:
+                        quantity_str = "0 GB" if "Bytes" in usage_type else "0"
+
+                    # Format rate
+                    if rate > 0:
+                        rate_str = f"${rate:.4f} per GB" if ("Bytes" in usage_type or "GB" in description) else f"${rate:.4f}"
+                    else:
+                        rate_str = "$0.00"
+
+                    # Display usage type with service prefix
+                    display_usage_type = usage_type
+                    if service == "DataTransfer" or "DataTransfer" in usage_type:
+                        if not usage_type.startswith("AWS Data Transfer"):
+                            display_usage_type = f"AWS Data Transfer {usage_type}"
+                    elif service == "AmazonEC2" and "BoxUsage" in usage_type:
+                        display_usage_type = f"Amazon EC2 {usage_type}"
+                    elif service == "AmazonS3":
+                        display_usage_type = f"Amazon S3 {usage_type}"
+
+                    region_display = region if region and region != "Global" else ""
+
+                    ws.append([month, cleaned_service_name, region_display,
+                                display_usage_type, description, quantity_str, rate_str, cost])
+
+    # Enable AutoFilter on the header row so users can filter by Month/Service/etc.
+    ws.auto_filter.ref = f"A1:{get_column_letter(ws.max_column)}{ws.max_row}"
 
     # Apply professional styling
     apply_professional_style(ws)
 
     # Adjust column widths
-    ws.column_dimensions["A"].width = 30  # Service
-    ws.column_dimensions["B"].width = 30  # Region
-    ws.column_dimensions["C"].width = 45  # Usage Type
-    ws.column_dimensions["D"].width = 80  # Description
-    ws.column_dimensions["E"].width = 15  # Quantity
-    ws.column_dimensions["F"].width = 12  # Rate
-    ws.column_dimensions["G"].width = 12  # Cost
+    ws.column_dimensions["A"].width = 8   # Month
+    ws.column_dimensions["B"].width = 30  # Service
+    ws.column_dimensions["C"].width = 28  # Region
+    ws.column_dimensions["D"].width = 45  # Usage Type
+    ws.column_dimensions["E"].width = 60  # Description
+    ws.column_dimensions["F"].width = 15  # Quantity
+    ws.column_dimensions["G"].width = 14  # Rate
+    ws.column_dimensions["H"].width = 12  # Cost
 
 
 def generate_report(billing_data_list, output_file):
