@@ -22,7 +22,7 @@ except ImportError:
     sys.exit(1)
 
 
-def get_cur_location(session, bucket_name='aws-cur-612674025488', prefix='cur'):
+def get_cur_location(session, bucket_name=None, prefix='cur'):
     """
     Find the latest CUR data location in S3.
 
@@ -63,7 +63,7 @@ def get_cur_location(session, bucket_name='aws-cur-612674025488', prefix='cur'):
         raise Exception(f"Failed to locate CUR data: {e}")
 
 
-def read_cur_data(session, year, month, bucket_name='aws-cur-612674025488', prefix='cur'):
+def read_cur_data(session, year, month, bucket_name=None, prefix='cur'):
     """
     Read CUR data from S3 Parquet files for a specific year and month.
 
@@ -342,8 +342,8 @@ Examples:
                        help='Specific month (1-12). If not specified, fetches all available months')
     parser.add_argument('-p', '--profile', dest='profile_name',
                        help='AWS profile name to use for authentication')
-    parser.add_argument('--bucket', default='aws-cur-612674025488',
-                       help='S3 bucket containing CUR data')
+    parser.add_argument('--bucket', default=None,
+                       help='S3 bucket containing CUR data (default: aws-cur-{account_id})')
     parser.add_argument('--prefix', default='cur',
                        help='S3 prefix for CUR data')
 
@@ -354,6 +354,9 @@ Examples:
     if args.year < 2010 or args.year > current_year + 1:
         print(f"Error: Year must be between 2010 and {current_year + 1}", file=sys.stderr)
         sys.exit(1)
+
+    # Determine bucket name
+    bucket_name = args.bucket or f"aws-cur-{args.account_id}"
 
     # Determine profile
     profile_name = args.profile_name or os.environ.get('AWS_PROFILE')
@@ -385,7 +388,7 @@ Examples:
         all_data = []
         for month in months_to_fetch:
             print(f"\nProcessing month {month}...", file=sys.stderr)
-            df = read_cur_data(session, args.year, month, args.bucket, args.prefix)
+            df = read_cur_data(session, args.year, month, bucket_name, args.prefix)
 
             if not df.empty:
                 all_data.append(df)
