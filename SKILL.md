@@ -31,9 +31,12 @@ When inside OpenOps, most parameters are already available:
 - **Output path**: Use the WORKSPACE path from system prompt: `<WORKSPACE>/<YYYY-MM-DD>/aws_billing_<account>_<year>.xlsx`. Create the date directory first with `mkdir -p`.
 - **Script path**: Skills are symlinked at `.claude/skills/aws-billing-report/scripts/` relative to the working directory.
 
-**Still ask the user for:**
+**Ask the user for the following before proceeding:**
 1. Which account to generate the report for (if multiple accounts available)
-2. Which year(s) to include (default: current year)
+2. Which year (default: current year)
+3. Which month(s) — present options: specific month (e.g. "3" for March), a range (e.g. "1-3" for Jan–Mar), or "all" for the full year
+
+**CRITICAL: You MUST wait for the user's response before proceeding. Do NOT assume defaults for month selection. This is a mandatory interaction point.**
 
 Then proceed to Step 2.
 
@@ -43,8 +46,11 @@ Ask the user for the following information if not provided:
 
 1. **AWS Account ID** (required): 12-digit AWS account ID
 2. **AWS Profile** (optional): `--profile <name>`, or uses default credentials
-3. **Year(s)** for the report (e.g., 2026, or multiple years like 2025,2026)
-4. **Output path** for the Excel report
+3. **Year** for the report (default: current year)
+4. **Month(s)** — specific month, range, or "all"
+5. **Output path** for the Excel report
+
+**CRITICAL: You MUST wait for the user's response before proceeding to Step 2. Do NOT run fetch and report generation in the same turn as the questions.**
 
 Then proceed to Step 2.
 
@@ -78,8 +84,10 @@ Setup creates: S3 bucket `aws-cur-{account_id}`, CUR report definition (Parquet,
 ### Step 3: Fetch Billing Data
 
 ```bash
-python3 <SCRIPT_PATH>/fetch_aws_billing.py <ACCOUNT_ID> <YEAR> [--profile <PROFILE>] > billing_<YEAR>.json 2>/dev/null
+python3 <SCRIPT_PATH>/fetch_aws_billing.py <ACCOUNT_ID> <YEAR> --months <MONTHS> [--profile <PROFILE>] > billing_<YEAR>.json 2>/dev/null
 ```
+
+`--months` options: single (`3`), range (`1-6`), comma-separated (`1,3,6`), or `all`. Default: current month.
 
 For multi-year reports, fetch each year separately.
 

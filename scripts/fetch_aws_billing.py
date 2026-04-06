@@ -338,8 +338,8 @@ Examples:
 
     parser.add_argument('account_id', help='AWS account ID (e.g., 612674025488)')
     parser.add_argument('year', type=int, help='Year to fetch billing data for (e.g., 2025)')
-    parser.add_argument('--month', type=int, default=None,
-                       help='Specific month (1-12). If not specified, fetches all available months')
+    parser.add_argument('--months', default=None,
+                       help='Month(s) to fetch: single (3), range (1-6), comma-separated (1,3,6), or "all". Default: current month')
     parser.add_argument('-p', '--profile', dest='profile_name',
                        help='AWS profile name to use for authentication')
     parser.add_argument('--bucket', default=None,
@@ -373,11 +373,23 @@ Examples:
         print(f"Error: AWS profile not found: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # Determine month to fetch
-    if args.month:
-        months_to_fetch = [args.month]
+    # Determine months to fetch
+    if args.months:
+        months_str = args.months.strip().lower()
+        if months_str == "all":
+            months_to_fetch = list(range(1, 13))
+        elif "-" in months_str and "," not in months_str:
+            # Range: "1-6"
+            parts = months_str.split("-")
+            start, end = int(parts[0]), int(parts[1])
+            months_to_fetch = list(range(start, end + 1))
+        elif "," in months_str:
+            # Comma-separated: "1,3,6"
+            months_to_fetch = [int(m.strip()) for m in months_str.split(",")]
+        else:
+            months_to_fetch = [int(months_str)]
     else:
-        # Fetch current month by default
+        # Default: current month
         months_to_fetch = [datetime.now().month]
 
     print(f"Fetching CUR billing data for account {args.account_id}, year {args.year}...", file=sys.stderr)
