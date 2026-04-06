@@ -87,6 +87,8 @@ Setup creates: S3 bucket `aws-cur-{account_id}`, CUR report definition (Parquet,
 python3 <SCRIPT_PATH>/fetch_aws_billing.py <ACCOUNT_ID> <YEAR> --months <MONTHS> [--profile <PROFILE>] > billing_<YEAR>.json 2>/dev/null
 ```
 
+**IMPORTANT**: The script outputs JSON to stdout and progress logs to stderr. Always redirect stdout to file and discard or separate stderr. **Never use `2>&1`** — it mixes logs into the JSON and corrupts the output.
+
 `--months` options: single (`3`), range (`1-6`), comma-separated (`1,3,6`), or `all`. Default: current month.
 
 For multi-year reports, fetch each year separately.
